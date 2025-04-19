@@ -6,7 +6,7 @@ import { selectAllTodos } from '../store/todoSlice';
 
 const TodoList = () => {
   const allTodos = useSelector(selectAllTodos);
-console.log(allTodos); // Проверяем, что ID задач получены корректно
+// console.log(allTodos); // Проверяем, что ID задач получены корректно
   return (
     <ul>
       {allTodos.map((todo) => (

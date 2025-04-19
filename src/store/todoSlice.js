@@ -1,4 +1,8 @@
-import { createSlice, createAsyncThunk, createEntityAdapter } from "@reduxjs/toolkit";
+import {
+  createSlice,
+  createAsyncThunk,
+  createEntityAdapter,
+} from "@reduxjs/toolkit";
 
 // 1. Используем EntityAdapter для нормализации данных
 const todosAdapter = createEntityAdapter({
@@ -50,9 +54,7 @@ export const toggleStatus = createAsyncThunk(
     const todo = todosAdapter
       .getSelectors()
       .selectById(getState().someTodos, id);
-
     if (!todo) return rejectWithValue("Todo not found");
-    
     const newPrice = todo.price < 50 ? 55 : 2;
 
     try {
@@ -61,9 +63,10 @@ export const toggleStatus = createAsyncThunk(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...todo, price: newPrice }),
       });
-      
       if (!response.ok) throw new Error("Update failed");
-      return await response.json();
+      const data = await response.json();
+      console.log("in thunk toggleStatus data --->",data);
+      return data;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -133,6 +136,7 @@ const todoSlice = createSlice({
         state.status = "updating";
       })
       .addCase(toggleStatus.fulfilled, (state, action) => {
+        console.log("action.payload", action.payload);
         todosAdapter.updateOne(state, {
           id: action.payload.id,
           changes: action.payload,
