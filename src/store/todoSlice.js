@@ -65,7 +65,7 @@ export const toggleStatus = createAsyncThunk(
       });
       if (!response.ok) throw new Error("Update failed");
       const data = await response.json();
-      console.log("in thunk toggleStatus data --->",data);
+      // console.log("in thunk toggleStatus data --->",data);
       return data;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -136,10 +136,15 @@ const todoSlice = createSlice({
         state.status = "updating";
       })
       .addCase(toggleStatus.fulfilled, (state, action) => {
-        console.log("action.payload", action.payload);
+        const { id, price, updatedAt } = action.payload;
+        
         todosAdapter.updateOne(state, {
-          id: action.payload.id,
-          changes: action.payload,
+          id: id,
+          changes: {
+            price: price,          // Обновляем только цену
+            updatedAt: updatedAt,  // И время обновления
+            completed: !state.entities[id].completed // Инвертируем локальный статус
+          }
         });
         state.status = "succeeded";
       })

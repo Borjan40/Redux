@@ -18,10 +18,10 @@ li {
   cursor: pointer;
 }
 
-input:checked + span {
+input:checked + span + span {
   text-decoration: line-through;
 }
 
 input:checked + span + span {
-  display: none;
+  /* display: none; */
 }
