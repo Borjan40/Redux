@@ -110,6 +110,25 @@ export const addNewTodo = createAsyncThunk(
   }
 );
 
+// Thunk для обновления заголовка
+export const updateTodoTitle = createAsyncThunk(
+  'todos/updateTitle',
+  async ({ id, newTitle }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle })
+      });
+      
+      if (!response.ok) throw new Error('Update failed');
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 // 5. Создание слайса с оптимизированными редьюсерами
 const todoSlice = createSlice({
   name: "todos",
@@ -169,7 +188,14 @@ const todoSlice = createSlice({
         todosAdapter.removeOne(state, action.payload);
         state.status = "succeeded";
       })
-      .addCase(deleteTodo.rejected, handleRejected);
+      .addCase(deleteTodo.rejected, handleRejected)
+      .addCase(updateTodoTitle.fulfilled, (state, action) => {
+        const updatedTodo = action.payload;
+        todosAdapter.updateOne(state, {
+          id: updatedTodo.id,
+          changes: { title: updatedTodo.title }
+        });
+      })
   },
 });
 

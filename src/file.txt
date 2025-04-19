@@ -1,0 +1,502 @@
+﻿===== C:\Users\user\Documents\githubRepos\Redux\src\components\InpField.jsx =====
+const InpField = ({ title, handleInput, handleSubmit }) => {
+    return (
+      <label>
+        <input value={title} onChange={(e) => handleInput(e.target.value)} />
+        <button onClick={handleSubmit}>Add Todo</button>
+      </label>
+    );
+  };
+  
+  export default InpField;
+  
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\components\TodoItem.jsx =====
+// TodoItem.jsx
+import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  updateTodoTitle,
+  selectTodoById,
+  toggleStatus,
+  deleteTodo,
+} from "../store/todoSlice";
+
+const TodoItem = ({ id }) => {
+  const dispatch = useDispatch();
+  const todo = useSelector((state) => selectTodoById(state, id));
+  const [isEditing, setIsEditing] = useState(false);
+  const [newTitle, setNewTitle] = useState(todo?.title || "");
+
+  // Стили для завершенных задач
+  const completedStyle = {
+    textDecoration: todo?.completed ? "line-through" : "none",
+    opacity: todo?.completed ? 0.5 : 1,
+  };
+
+  // Обработчик изменения заголовка
+  const handleTitleUpdate = async () => {
+    if (newTitle.trim() && newTitle !== todo.title) {
+      try {
+        await dispatch(updateTodoTitle({ id, newTitle })).unwrap();
+      } catch (error) {
+        console.error("Failed to update title:", error);
+      }
+    }
+    setIsEditing(false);
+  };
+
+  if (!todo) return null;
+
+  return (
+    <li>
+      <input
+        type="checkbox"
+        checked={todo.completed}
+        onChange={() => dispatch(toggleStatus(todo.id))}
+      />
+
+      {/* Иконка редактирования */}
+      <span
+        className="edit-icon"
+        onClick={() => setIsEditing(true)}
+        role="button"
+        tabIndex={0}
+      >
+        ✏️
+      </span>
+
+      {/* Поле редактирования */}
+      {isEditing ? (
+        <input
+          type="text"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onBlur={handleTitleUpdate}
+          onKeyPress={(e) => e.key === "Enter" && handleTitleUpdate()}
+          autoFocus
+        />
+      ) : (
+        <span style={completedStyle}>{todo.title}</span>
+      )}
+
+      <span className="price-tag">${todo.price}</span>
+      <span
+        className="delete"
+        onClick={() => dispatch(deleteTodo(todo.id))}
+        title="Delete task"
+      >
+        &times;
+      </span>
+    </li>
+  );
+};
+
+export default TodoItem;
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\components\TodoList.jsx =====
+import React from 'react';
+import { useSelector } from 'react-redux';
+import TodoItem from './TodoItem';
+import { selectAllTodos } from '../store/todoSlice';
+// Импортируем селектор для получения ID задач
+
+const TodoList = () => {
+  const allTodos = useSelector(selectAllTodos);
+// console.log(allTodos); // Проверяем, что ID задач получены корректно
+  return (
+    <ul>
+      {allTodos.map((todo) => (
+        <TodoItem
+          key={todo.id}
+          id={todo.id}
+          title={todo.title}
+          completed={todo.completed}
+          price={todo.price} // Если нужно отображать цену
+        />
+      ))}
+    </ul>
+  );
+};
+
+export default TodoList;
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\store\index.js =====
+import { configureStore } from "@reduxjs/toolkit";
+import todoReducer from "./todoSlice"; //  мы не достаем алиас todoReducer из "./todoSlice", его экспортир. по дефолту
+export default configureStore({
+  reducer: {
+    someTodos: todoReducer,
+  },
+});
+
+
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\store\todoSlice.js =====
+import {
+  createSlice,
+  createAsyncThunk,
+  createEntityAdapter,
+} from "@reduxjs/toolkit";
+
+// 1. Используем EntityAdapter для нормализации данных
+const todosAdapter = createEntityAdapter({
+  selectId: (todo) => todo.id,
+  sortComparer: (a, b) => a.id - b.id,
+});
+
+// 2. Конфигурация API
+const API_BASE = "https://api.escuelajs.co/api/v1/products";
+
+// 3. Общий обработчик ошибок
+const handleRejected = (state, action) => {
+  state.status = "failed";
+  state.error = action.payload || action.error.message;
+};
+
+// 4. Асинхронные операции
+export const fetchTodos = createAsyncThunk(
+  "todos/fetchTodos",
+  async (_, { rejectWithValue }) => {
+    try {
+      // Получаем общее количество товаров
+      const countResponse = await fetch(API_BASE);
+      if (!countResponse.ok) throw new Error("Server Error");
+      const allProducts = await countResponse.json();
+      const totalCount = allProducts.length;
+
+      // Рассчитываем offset для последних 10 элементов
+      const offset = Math.max(totalCount - 10, 0);
+      
+      // Получаем последние 10 товаров
+      const response = await fetch(`${API_BASE}?offset=${offset}&limit=10`);
+      if (!response.ok) throw new Error("Server Error");
+      
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const deleteTodo = createAsyncThunk(
+  "todos/deleteTodo",
+  async (id, { rejectWithValue, dispatch }) => {
+    try {
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Delete failed");
+      return id; // Возвращаем ID для автоматического удаления
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const toggleStatus = createAsyncThunk(
+  "todos/toggleStatus",
+  async (id, { getState, rejectWithValue }) => {
+    const todo = todosAdapter
+      .getSelectors()
+      .selectById(getState().someTodos, id);
+    if (!todo) return rejectWithValue("Todo not found");
+    const newPrice = todo.price < 50 ? 55 : 2;
+
+    try {
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...todo, price: newPrice }),
+      });
+      if (!response.ok) throw new Error("Update failed");
+      const data = await response.json();
+      // console.log("in thunk toggleStatus data --->",data);
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const addNewTodo = createAsyncThunk(
+  "todos/addNewTodo",
+  async (text, { rejectWithValue }) => {
+    try {
+      const newTodo = {
+        title: text,
+        price: Math.floor(Math.random() * 100),
+        description: "Privet iz Pitera",
+        categoryId: 2,
+        images: ["https://placeimg.com/640/480"],
+      };
+
+      const response = await fetch(API_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTodo),
+      });
+
+      if (!response.ok) throw new Error("Add failed");
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// Thunk для обновления заголовка
+export const updateTodoTitle = createAsyncThunk(
+  'todos/updateTitle',
+  async ({ id, newTitle }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle })
+      });
+      
+      if (!response.ok) throw new Error('Update failed');
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// 5. Создание слайса с оптимизированными редьюсерами
+const todoSlice = createSlice({
+  name: "todos",
+  initialState: todosAdapter.getInitialState({
+    status: "idle",
+    error: null,
+    lastFetch: null,
+  }),
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      // Fetch Todos
+      .addCase(fetchTodos.pending, (state) => {
+        state.status = "loading";
+      })
+      .addCase(fetchTodos.fulfilled, (state, action) => {
+        todosAdapter.setAll(state, action.payload);
+        state.status = "succeeded";
+        state.lastFetch = Date.now();
+      })
+      .addCase(fetchTodos.rejected, handleRejected)
+
+      // Add Todo
+      .addCase(addNewTodo.pending, (state) => {
+        state.status = "adding";
+      })
+      .addCase(addNewTodo.fulfilled, (state, action) => {
+        todosAdapter.addOne(state, action.payload);
+        state.status = "succeeded";
+      })
+      .addCase(addNewTodo.rejected, handleRejected)
+
+      // Toggle Status
+      .addCase(toggleStatus.pending, (state) => {
+        state.status = "updating";
+      })
+      .addCase(toggleStatus.fulfilled, (state, action) => {
+        const { id, price, updatedAt } = action.payload;
+        
+        todosAdapter.updateOne(state, {
+          id: id,
+          changes: {
+            price: price,          // Обновляем только цену
+            updatedAt: updatedAt,  // И время обновления
+            completed: !state.entities[id].completed // Инвертируем локальный статус
+          }
+        });
+        state.status = "succeeded";
+      })
+      .addCase(toggleStatus.rejected, handleRejected)
+
+      // Delete Todo
+      .addCase(deleteTodo.pending, (state) => {
+        state.status = "deleting";
+      })
+      .addCase(deleteTodo.fulfilled, (state, action) => {
+        todosAdapter.removeOne(state, action.payload);
+        state.status = "succeeded";
+      })
+      .addCase(deleteTodo.rejected, handleRejected)
+      .addCase(updateTodoTitle.fulfilled, (state, action) => {
+        const updatedTodo = action.payload;
+        todosAdapter.updateOne(state, {
+          id: updatedTodo.id,
+          changes: { title: updatedTodo.title }
+        });
+      })
+  },
+});
+
+// 6. Экспорт селекторов
+export const {
+  selectAll: selectAllTodos,
+  selectById: selectTodoById,
+  selectIds: selectTodoIds,
+} = todosAdapter.getSelectors((state) => state.someTodos);
+
+export const selectTodosStatus = (state) => state.someTodos.status;
+export const selectTodosError = (state) => state.someTodos.error;
+
+export default todoSlice.reducer;
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\App.css =====
+/* App.css */
+.App {
+  text-align: left; /* Меняем центрирование на левое выравнивание */
+  max-width: 800px; /* Ограничиваем ширину контейнера */
+  margin: 0 auto; /* Центрируем контейнер на странице */
+  padding: 20px;
+}
+
+ul {
+  list-style: none;
+  padding: 0; /* Убираем стандартные отступы */
+  margin: 0;  /* Убираем стандартные отступы */
+}
+
+li {
+  display: flex;
+  justify-content: flex-start; /* Меняем выравнивание на левый край */
+  align-items: center;
+  gap: 10px; /* Увеличиваем промежуток между элементами */
+  padding: 8px 0; /* Добавляем вертикальные отступы */
+  border-bottom: 1px solid #eee; /* Необязательно: разделитель между элементами */
+}
+
+input[type="checkbox"] {
+  margin: 0; /* Убираем возможные отступы у чекбокса */
+}
+
+.price-tag {
+  margin-left: auto; /* Цена прижимается к правому краю */
+  color: #666;
+}
+
+.delete {
+  color: red;
+  cursor: pointer;
+  padding: 0 8px;
+}
+
+.edit-icon {
+  cursor: pointer;
+  margin-right: 8px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.edit-icon:hover {
+  opacity: 1;
+}
+
+input[type="text"] {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: inherit;
+}
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\App.jsx =====
+import "./App.css";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchTodos, addNewTodo } from "./store/todoSlice";
+import { selectTodosStatus, selectTodosError } from "./store/todoSlice";
+import TodoList from "./components/TodoList";
+import InpField from "./components/InpField";
+
+function App() {
+  const [text, setText] = useState("");
+  const dispatch = useDispatch();
+  // Новые селекторы
+  const status = useSelector(selectTodosStatus);
+  const error = useSelector(selectTodosError);
+  const addTask = () => {
+    if (text.trim().length) {
+      dispatch(addNewTodo(text));
+      setText("");
+    }
+  };
+
+  useEffect(() => {
+    dispatch(fetchTodos());
+  }, [dispatch]);
+
+  return (
+    <div className="App">
+      <InpField title={text} handleInput={setText} handleSubmit={addTask} />
+      {status === "loading" && <h2>Loading...</h2>}
+      {status === "adding" && <h2>Adding todo...</h2>}
+      {error && <h2>Error: {error}</h2>}
+      <TodoList />
+    </div>
+  );
+}
+
+export default App;
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\App.test.js =====
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\index.css =====
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\index.jsx =====
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./index.css";
+import { Provider } from "react-redux";
+import store from "./store";
+import App from "./App";
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(
+  <Provider store={store}>
+    <App />
+  </Provider>
+);
+
+
+
+===== C:\Users\user\Documents\githubRepos\Redux\src\styles.css =====
+.App {
+    text-align: center;
+  }
+  
+
+
