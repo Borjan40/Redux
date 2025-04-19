@@ -1,20 +1,21 @@
-import { useSelector } from "react-redux";
-import Todoitem from "./TodoItem";
+import React from 'react';
+import { useSelector } from 'react-redux';
+import TodoItem from './TodoItem';
+import { selectAllTodos } from '../store/todoSlice';
+// Импортируем селектор для получения ID задач
 
 const TodoList = () => {
-  const todos = useSelector((state) => {
-    // console.log("state-->", state);
-    return state.someTodos.rootTodos;
-  });
-
+  const allTodos = useSelector(selectAllTodos);
+console.log(allTodos); // Проверяем, что ID задач получены корректно
   return (
     <ul>
-      {todos.map((todo) => (
-        <Todoitem
+      {allTodos.map((todo) => (
+        <TodoItem
           key={todo.id}
-          // onRemove={onRemoveTodo}
-          // onToggle={onToggleTodoCompl}
-          {...todo}
+          id={todo.id}
+          title={todo.title}
+          completed={todo.completed}
+          price={todo.price} // Если нужно отображать цену
         />
       ))}
     </ul>

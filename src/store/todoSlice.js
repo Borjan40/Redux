@@ -1,16 +1,28 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, createEntityAdapter } from "@reduxjs/toolkit";
 
+// 1. Используем EntityAdapter для нормализации данных
+const todosAdapter = createEntityAdapter({
+  selectId: (todo) => todo.id,
+  sortComparer: (a, b) => a.id - b.id,
+});
+
+// 2. Конфигурация API
+const API_BASE = "https://api.escuelajs.co/api/v1/products";
+
+// 3. Общий обработчик ошибок
+const handleRejected = (state, action) => {
+  state.status = "failed";
+  state.error = action.payload || action.error.message;
+};
+
+// 4. Асинхронные операции
 export const fetchTodos = createAsyncThunk(
   "todos/fetchTodos",
-  async function (_, { rejectWithValue, dispatch }) {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch("https://api.escuelajs.co/api/v1/products");
-      if (!response.ok) {
-        throw new Error("Server Error");
-      }
-      const data = await response.json();
-      console.log("fetchTodos-->", data);
-      return data;
+      const response = await fetch(API_BASE);
+      if (!response.ok) throw new Error("Server Error");
+      return await response.json();
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -19,17 +31,13 @@ export const fetchTodos = createAsyncThunk(
 
 export const deleteTodo = createAsyncThunk(
   "todos/deleteTodo",
-  async function (id, { rejectWithValue, dispatch, getState }) {
+  async (id, { rejectWithValue, dispatch }) => {
     try {
-      const response = await fetch(
-        `https://api.escuelajs.co/api/v1/products/${id}`,
-        { method: "DELETE" }
-      );
-      if (!response.ok) {
-        throw new Error("Cant delete task. Server error");
-      }
-
-      dispatch(removeTodo({ inpId: id }));
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Delete failed");
+      return id; // Возвращаем ID для автоматического удаления
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -38,49 +46,24 @@ export const deleteTodo = createAsyncThunk(
 
 export const toggleStatus = createAsyncThunk(
   "todos/toggleStatus",
-  async function (toggledId, { rejectWithValue, dispatch, getState }) {
-    // const todoFromState = getState().someTodos.rootTodos.find(
-    //   (todo) => todo.id === toggledId
-    // );
-    // console.log("state price-->", todoFromState.price);
-    // let priceisUp = todoFromState.price - todoFromState.price + 55;
-    // let priceisDown = todoFromState.price - todoFromState.price + 2;
-    // let toggledPrice = todoFromState.price < 50 ? priceisUp : priceisDown;
+  async (id, { getState, rejectWithValue }) => {
+    const todo = todosAdapter
+      .getSelectors()
+      .selectById(getState().someTodos, id);
+
+    if (!todo) return rejectWithValue("Todo not found");
+    
+    const newPrice = todo.price < 50 ? 55 : 2;
 
     try {
-      // Сначала получаем свежие данные с сервера
-      const freshDataResponse = await fetch(
-        `https://api.escuelajs.co/api/v1/products/${toggledId}`
-      );
-      const freshData = await freshDataResponse.json();
-      // Обновляем цену
-      const toggledPrice = freshData.price < 50 ? 55 : 2;
-
-      const response = await fetch(
-        `https://api.escuelajs.co/api/v1/products/${toggledId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify({
-            ...freshData,
-            title: freshData.title,
-            price: toggledPrice,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Cant toggle status. Server error");
-      }
-
-      const data = await response.json();
-      // dispatch(toggleTodoComplete({ inpId: toggledId }));
-      dispatch(toggleTodoComplete(data));
-      console.log("toggled price-->", data.price);
-      console.log("togglestatus-->", data);
-      return data;
+      const response = await fetch(`${API_BASE}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...todo, price: newPrice }),
+      });
+      
+      if (!response.ok) throw new Error("Update failed");
+      return await response.json();
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -89,121 +72,95 @@ export const toggleStatus = createAsyncThunk(
 
 export const addNewTodo = createAsyncThunk(
   "todos/addNewTodo",
-  async function (text, { rejectWithValue, dispatch }) {
+  async (text, { rejectWithValue }) => {
     try {
-      const response = await fetch("https://api.escuelajs.co/api/v1/products");
-      if (!response.ok) {
-        throw new Error("Server Error response");
-      }
-
-      const data = await response.json();
-      console.log("запрос данных внутри addNewTodo -->", data);
-      let lastElem = data.unshift();
-
-      const todo = {
+      const newTodo = {
         title: text,
-        price: lastElem,
+        price: Math.floor(Math.random() * 100),
         description: "Privet iz Pitera",
         categoryId: 2,
-        images: ["https://placeimg.com/6test0/"],
+        images: ["https://placeimg.com/640/480"],
       };
 
-      const addresp = await fetch("https://api.escuelajs.co/api/v1/products", {
+      const response = await fetch(API_BASE, {
         method: "POST",
-        headers: {
-          "Content-type": "application/json",
-        },
-        body: JSON.stringify(todo),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTodo),
       });
 
-      if (!addresp.ok) {
-        throw new Error("Server Error addresp");
-      }
-      const dataAddresp = await addresp.json();
-      console.log("POST responce data.title -->", dataAddresp.title);
-
-      dispatch(addTodo(dataAddresp));
+      if (!response.ok) throw new Error("Add failed");
+      return await response.json();
     } catch (error) {
       return rejectWithValue(error.message);
     }
   }
 );
 
-const setError = (state, action) => {
-  state.status = "rejected";
-  state.error = action.payload;
-};
-
+// 5. Создание слайса с оптимизированными редьюсерами
 const todoSlice = createSlice({
-  name: "ToDos",
-  initialState: {
-    rootTodos: [],
-    status: null,
+  name: "todos",
+  initialState: todosAdapter.getInitialState({
+    status: "idle",
     error: null,
-  },
-  reducers: {
-    addTodo(state, action) {
-      state.rootTodos.push({
-        id: action.payload.id,
-        title: action.payload.title,
-        completed: false,
-        price: action.payload.price,
-      });
-    },
-    removeTodo(state, action) {
-      state.rootTodos = state.rootTodos.filter(
-        (todo) => todo.id !== action.payload.inpId
-      );
-    },
-    toggleTodoComplete(state, action) {
-      const toggledtodo = state.rootTodos.find(
-        (todo) => todo.id === action.payload.id
-      );
-      toggledtodo.price = action.payload.price;
-      toggledtodo.completed = !toggledtodo.completed;
-    },
-  },
+    lastFetch: null,
+  }),
+  reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTodos.pending, (state, action) => {
+      // Fetch Todos
+      .addCase(fetchTodos.pending, (state) => {
         state.status = "loading";
-        state.error = null;
       })
       .addCase(fetchTodos.fulfilled, (state, action) => {
-        state.status = "resolved";
-        const newArr = action.payload.map(function (item) {
-          let premiumProduct = false;
-          Number(item.price) > 50 && (premiumProduct = !premiumProduct);
-          return { ...item, completed: premiumProduct };
-        });
-        state.rootTodos = newArr;
+        todosAdapter.setAll(state, action.payload);
+        state.status = "succeeded";
+        state.lastFetch = Date.now();
       })
-      .addCase(fetchTodos.rejected, setError)
-      .addCase(deleteTodo.rejected, setError)
-      .addCase(toggleStatus.pending, (state, action) => {
-        state.status = "loading";
-        console.log("extraReducers toggleStatus.pending action-->", action);
+      .addCase(fetchTodos.rejected, handleRejected)
+
+      // Add Todo
+      .addCase(addNewTodo.pending, (state) => {
+        state.status = "adding";
+      })
+      .addCase(addNewTodo.fulfilled, (state, action) => {
+        todosAdapter.addOne(state, action.payload);
+        state.status = "succeeded";
+      })
+      .addCase(addNewTodo.rejected, handleRejected)
+
+      // Toggle Status
+      .addCase(toggleStatus.pending, (state) => {
+        state.status = "updating";
       })
       .addCase(toggleStatus.fulfilled, (state, action) => {
-        state.status = "resolved";
-
-        // console.log(
-        //   "before extraReducers toggleStatus.fulfilled state.rootTodos-->",
-        //   state.rootTodos[0]
-        // );
-        // state.rootTodos[0].description = "store description";
-        // console.log(
-        //   "after extraReducers toggleStatus.fulfilled state.rootTodos-->",
-        //   state.rootTodos[0].description
-        // );
-        // console.log(
-        //   "extraReducers toggleStatus.fulfilled action.payload-->",
-        //   action.payload
-        // );
+        todosAdapter.updateOne(state, {
+          id: action.payload.id,
+          changes: action.payload,
+        });
+        state.status = "succeeded";
       })
-      .addCase(toggleStatus.rejected, setError);
+      .addCase(toggleStatus.rejected, handleRejected)
+
+      // Delete Todo
+      .addCase(deleteTodo.pending, (state) => {
+        state.status = "deleting";
+      })
+      .addCase(deleteTodo.fulfilled, (state, action) => {
+        todosAdapter.removeOne(state, action.payload);
+        state.status = "succeeded";
+      })
+      .addCase(deleteTodo.rejected, handleRejected);
   },
 });
 
-export const { addTodo, removeTodo, toggleTodoComplete } = todoSlice.actions; // через десптруктуриз. достаем экшены
-export default todoSlice.reducer; // достаем редьюсер
+// 6. Экспорт селекторов
+export const {
+  selectAll: selectAllTodos,
+  selectById: selectTodoById,
+  selectIds: selectTodoIds,
+} = todosAdapter.getSelectors((state) => state.someTodos);
+
+export const selectTodosStatus = (state) => state.someTodos.status;
+export const selectTodosError = (state) => state.someTodos.error;
+
+export default todoSlice.reducer;
