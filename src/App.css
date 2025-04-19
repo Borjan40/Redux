@@ -1,27 +1,37 @@
+/* App.css */
 .App {
-  text-align: center;
+  text-align: left; /* Меняем центрирование на левое выравнивание */
+  max-width: 800px; /* Ограничиваем ширину контейнера */
+  margin: 0 auto; /* Центрируем контейнер на странице */
+  padding: 20px;
 }
 
 ul {
   list-style: none;
+  padding: 0; /* Убираем стандартные отступы */
+  margin: 0;  /* Убираем стандартные отступы */
 }
+
 li {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start; /* Меняем выравнивание на левый край */
   align-items: center;
-  text-decoration: none;
-  gap: 0.5 rem;
+  gap: 10px; /* Увеличиваем промежуток между элементами */
+  padding: 8px 0; /* Добавляем вертикальные отступы */
+  border-bottom: 1px solid #eee; /* Необязательно: разделитель между элементами */
+}
+
+input[type="checkbox"] {
+  margin: 0; /* Убираем возможные отступы у чекбокса */
+}
+
+.price-tag {
+  margin-left: auto; /* Цена прижимается к правому краю */
+  color: #666;
 }
 
 .delete {
   color: red;
   cursor: pointer;
-}
-
-input:checked + span + span {
-  text-decoration: line-through;
-}
-
-input:checked + span + span {
-  /* display: none; */
+  padding: 0 8px;
 }

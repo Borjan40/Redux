@@ -24,8 +24,19 @@ export const fetchTodos = createAsyncThunk(
   "todos/fetchTodos",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch(API_BASE);
+      // Получаем общее количество товаров
+      const countResponse = await fetch(API_BASE);
+      if (!countResponse.ok) throw new Error("Server Error");
+      const allProducts = await countResponse.json();
+      const totalCount = allProducts.length;
+
+      // Рассчитываем offset для последних 10 элементов
+      const offset = Math.max(totalCount - 10, 0);
+      
+      // Получаем последние 10 товаров
+      const response = await fetch(`${API_BASE}?offset=${offset}&limit=10`);
       if (!response.ok) throw new Error("Server Error");
+      
       return await response.json();
     } catch (error) {
       return rejectWithValue(error.message);
